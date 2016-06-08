@@ -16,9 +16,12 @@ varying vec4 vecPos;
 
 uniform samplerCube cubemap;
 
+//uniform float spaceShip;
+
 void main()
-{
+{	
 	gl_Position = P * MV * aPos;
+
 	vTex0 = aTex;
 
 	vec4 newNormal = MV * vec4(aNor, 0.0);

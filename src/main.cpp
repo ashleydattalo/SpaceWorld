@@ -26,9 +26,6 @@ using namespace Eigen;
 
 GLFWwindow *window; // Main application window
 string RESOURCE_DIR = "./"; // Where the resources are loaded from
-string RESOURCE_DIR2 = "./";
-string name;
-
 
 shared_ptr<Camera> camera;
 shared_ptr<Program> prog;
@@ -174,7 +171,8 @@ static void init()
 	prog->addUniform("texture1");
 	prog->addUniform("texture2");
 	prog->addUniform("lightPosCam");
-	//prog->addUniform("cubemap");
+	prog->addUniform("cameraPos");
+	prog->addUniform("sun");
 
 	camera = make_shared<Camera>();
 	camera->setInitDistance(3.0f);
@@ -199,7 +197,7 @@ static void init()
 	
 	T.setIdentity();
 
-	lightPosCam << 1.0f, 1.0f, -3.0f;
+	lightPosCam << -13.0f, 1.0f, 1.0f;
 	
 	shape = make_shared<Shape>();
 	shape->loadMesh(RESOURCE_DIR + "sphere.obj");
@@ -214,11 +212,11 @@ static void init()
 	
 
 	shared_ptr<Object> planet = make_shared<Object>();
-	shared_ptr<Object> sun = make_shared<Object>();
+	shared_ptr<Object> sun2 = make_shared<Object>();
 	shared_ptr<Object> ship = make_shared<Object>();
 
 	objects.push_back(planet);
-	objects.push_back(sun);
+	objects.push_back(sun2);
 	objects.push_back(ship);
 
 	objects[0]->shape = make_shared<Shape>();
@@ -292,12 +290,12 @@ static void init()
 							  RESOURCE_DIR + "negz.jpg",
 							  RESOURCE_DIR + "posz.jpg");
 
-	textureCube->setFilenamesTexCube(RESOURCE_DIR2 + name + "_lf.tga",
-							  RESOURCE_DIR2 + name +  "_rt.tga",
-							  RESOURCE_DIR2 + name +  "_dn.tga",
-							  RESOURCE_DIR2 + name +  "_up.tga",
-							  RESOURCE_DIR2 + name +  "_ft.tga",
-							  RESOURCE_DIR2 + name +  "_bk.tga");
+	textureCube->setFilenamesTexCube(RESOURCE_DIR + "purplenebula_lf.tga",
+							  RESOURCE_DIR + "purplenebula_rt.tga",
+							  RESOURCE_DIR + "purplenebula_dn.tga",
+							  RESOURCE_DIR + "purplenebula_up.tga",
+							  RESOURCE_DIR + "purplenebula_ft.tga",
+							  RESOURCE_DIR + "purplenebula_bk.tga");
 	textureCube->initTexCube();
 
 
@@ -361,7 +359,7 @@ static void render()
 
 	prog->bind();
 
-	// glUniformMatrix4fv(prog->getUniform("V"), 1, GL_FALSE, MV->topMatrix().data());
+	//glUniformMatrix4fv(prog->getUniform("V"), 1, GL_FALSE, MV->topMatrix().data());
 
 
 	texture0->bind(prog->getUniform("texture0"));
@@ -374,14 +372,23 @@ static void render()
 	glUniformMatrix3fv(prog->getUniform("T"), 1, GL_FALSE, T.data());
 	glUniform3f(prog->getUniform("lightPosCam"), lightPosCam[0], lightPosCam[1], lightPosCam[2]);
 
-	// MV->pushMatrix();
-	// MV->translate(lightPosCam);
-	// glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
-	// glUniformMatrix4fv(prog->getUniform("MV"), 1, GL_FALSE, MV->topMatrix().data());
-	// sun->draw(prog);
-	// MV->popMatrix();
+	Vector3f camPos = camera->getEye();
+	cout << endl;
+	cout << camPos << endl;
+	glUniform3f(prog->getUniform("cameraPos"), camPos[0], camPos[1], camPos[2]);
 
 
+	//drawsSun
+	glUniform1f(prog->getUniform("sun"), 1.0f);
+	MV->pushMatrix();
+	MV->translate(lightPosCam);
+	glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
+	glUniformMatrix4fv(prog->getUniform("MV"), 1, GL_FALSE, MV->topMatrix().data());
+	sun->draw(prog);
+	MV->popMatrix();
+
+
+	glUniform1f(prog->getUniform("sun"), 0.0f);
 	MV->pushMatrix();
 	MV->translate(objects[0]->position);
 	MV->scale(10, 10, 10);
@@ -394,9 +401,9 @@ static void render()
 	MV->popMatrix();
 
 	MV->pushMatrix();
-	MV->translate(objects[1]->position);
-	MV->rotate(45, 0, 0, 1);
-	MV->scale(20, 20, 20);
+	// MV->translate(objects[1]->position);
+	// MV->rotate(45, 0, 0, 1);
+	// MV->scale(20, 20, 20);
 	glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
 	glUniformMatrix4fv(prog->getUniform("MV"), 1, GL_FALSE, MV->topMatrix().data());
 	objects[1]->step(.01f);
@@ -432,8 +439,6 @@ int main(int argc, char **argv)
 		return 0;
 	}
 	RESOURCE_DIR = argv[1] + string("/");
-	RESOURCE_DIR2 = argv[2] + string("/");
-	name = argv[3];
 
 	// Set error callback.
 	glfwSetErrorCallback(error_callback);
