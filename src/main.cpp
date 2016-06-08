@@ -26,6 +26,9 @@ using namespace Eigen;
 
 GLFWwindow *window; // Main application window
 string RESOURCE_DIR = "./"; // Where the resources are loaded from
+string RESOURCE_DIR2 = "./";
+string name;
+
 
 shared_ptr<Camera> camera;
 shared_ptr<Program> prog;
@@ -33,6 +36,11 @@ shared_ptr<Texture> texture0;
 shared_ptr<Texture> texture1;
 shared_ptr<Texture> texture2;
 shared_ptr<Shape> shape;
+shared_ptr<Shape> sun;
+
+shared_ptr<Shape> sky;
+shared_ptr<Program> progSky;
+shared_ptr<Texture> textureCube;
 
 vector<shared_ptr<Object>> objects;
 
@@ -44,6 +52,8 @@ bool keyToggles[256] = {false}; // only for English keyboards!
 bool startAnimation;
 
 float angle = 0;
+
+
 
 // This function is called when a GLFW error occurs
 static void error_callback(int error, const char *description)
@@ -159,11 +169,13 @@ static void init()
 	prog->addUniform("P");
 	prog->addUniform("MV");
 	prog->addUniform("T");
+	prog->addUniform("V");
 	prog->addUniform("texture0");
 	prog->addUniform("texture1");
 	prog->addUniform("texture2");
 	prog->addUniform("lightPosCam");
-	
+	//prog->addUniform("cubemap");
+
 	camera = make_shared<Camera>();
 	camera->setInitDistance(3.0f);
 	
@@ -194,24 +206,28 @@ static void init()
 	shape->fitToUnitBox();
 	texture2->setUnit(10);
 	shape->init();
+
+	sun = make_shared<Shape>();
+	sun->loadMesh(RESOURCE_DIR + "sphere.obj");
+	sun->fitToUnitBox();
+	sun->init();
 	
 
 	shared_ptr<Object> planet = make_shared<Object>();
 	shared_ptr<Object> sun = make_shared<Object>();
+	shared_ptr<Object> ship = make_shared<Object>();
 
 	objects.push_back(planet);
 	objects.push_back(sun);
+	objects.push_back(ship);
 
 	objects[0]->shape = make_shared<Shape>();
 	objects[1]->shape = make_shared<Shape>();
+	objects[2]->shape = make_shared<Shape>();
 
 	objects[0]->shape->loadMesh(RESOURCE_DIR + "sphere.obj");
 	objects[0]->shape->fitToUnitBox();
 	objects[0]->shape->init();
-
-	objects[1]->shape->loadMesh(RESOURCE_DIR + "sphere.obj");
-	objects[1]->shape->fitToUnitBox();
-	objects[1]->shape->init();
 
 	objects[0]->position = { -50, 50, 0 };
 	objects[0]->scale = { 1.0f, 1.0f, 1.0f };
@@ -223,6 +239,10 @@ static void init()
 	objects[0]->mass = 5.971f;
 	objects[0]->c = 1.0f;
 
+	objects[1]->shape->loadMesh(RESOURCE_DIR + "station.obj");
+	objects[1]->shape->fitToUnitBox();
+	objects[1]->shape->init();
+
 	objects[1]->position = { 10, 0, 0};
 	objects[1]->scale = { 1.0f, 1.0f, 1.0f };
 	objects[1]->xRot = randFloat(0, 360);
@@ -232,6 +252,54 @@ static void init()
 	objects[1]->velocity = { 0, 0, 0 };
 	objects[1]->mass = 10000.0f;
 	objects[1]->c = 5.0f;
+
+	objects[2]->shape->loadMesh(RESOURCE_DIR + "executor.obj");
+	objects[2]->shape->fitToUnitBox();
+	objects[2]->shape->init();
+
+	objects[2]->position = { 10, 0, 0};
+	objects[2]->scale = { 1.0f, 1.0f, 1.0f };
+	objects[2]->xRot = randFloat(0, 360);
+	objects[2]->ka = { randFloat(0, 0.2f), randFloat(0, 0.2f), randFloat(0, 0.2f) };
+	objects[2]->ks = { 0.8f, 0.7f, 0.7f };
+	objects[2]->kd = { 1.0f, 0.9f, 0.8f };
+	objects[2]->velocity = { 0, 0, 0 };
+	objects[2]->mass = 10000.0f;
+	objects[2]->c = 5.0f;
+
+
+
+	//cube map stuff
+	sky = make_shared<Shape>();
+	sky->loadMesh(RESOURCE_DIR + "sphere.obj");
+	sky->init();
+
+	progSky = make_shared<Program>();
+	progSky->setShaderNames(RESOURCE_DIR + "sky_vert.glsl", RESOURCE_DIR + "sky_frag.glsl");
+	progSky->setVerbose(false);
+	progSky->init();
+	progSky->addAttribute("aPos");
+	progSky->addAttribute("aNor");
+	progSky->addUniform("P");
+	progSky->addUniform("MV");
+	progSky->addUniform("cubemap");
+
+	textureCube = make_shared<Texture>();
+	textureCube->setFilenamesTexCube(RESOURCE_DIR + "negx.jpg",
+							  RESOURCE_DIR + "posx.jpg",
+							  RESOURCE_DIR + "posy.jpg",
+							  RESOURCE_DIR + "negy.jpg",
+							  RESOURCE_DIR + "negz.jpg",
+							  RESOURCE_DIR + "posz.jpg");
+
+	textureCube->setFilenamesTexCube(RESOURCE_DIR2 + name + "_lf.tga",
+							  RESOURCE_DIR2 + name +  "_rt.tga",
+							  RESOURCE_DIR2 + name +  "_dn.tga",
+							  RESOURCE_DIR2 + name +  "_up.tga",
+							  RESOURCE_DIR2 + name +  "_ft.tga",
+							  RESOURCE_DIR2 + name +  "_bk.tga");
+	textureCube->initTexCube();
+
 
 
 	GLSL::checkError(GET_FILE_LINE);
@@ -276,24 +344,43 @@ static void render()
 
 	}
 
+	// Draw sky sphere
+	progSky->bind();
+	textureCube->bindTexCube(progSky->getUniform("cubemap"));
+	MV->pushMatrix();
+	MV->scale(500.0f);
+	glUniformMatrix4fv(progSky->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
+	glUniformMatrix4fv(progSky->getUniform("MV"), 1, GL_FALSE, MV->topMatrix().data());
+	sky->draw(progSky);
+	MV->popMatrix();
+	textureCube->unbindTexCube();
+	progSky->unbind();
+
+
+
+
 	prog->bind();
+
+	// glUniformMatrix4fv(prog->getUniform("V"), 1, GL_FALSE, MV->topMatrix().data());
+
+
 	texture0->bind(prog->getUniform("texture0"));
 	texture1->bind(prog->getUniform("texture0"));
 	texture2->bind(prog->getUniform("texture2"));
 
-	// if (angle >= 2) {
-	// 	angle = -2;
-	// }
-	// else {
-	// 	angle += .01;
-	//}
-	//MV->translate(angle, 0, 0);
-	//cout << angle << endl;
 
 	glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
 	glUniformMatrix4fv(prog->getUniform("MV"), 1, GL_FALSE, MV->topMatrix().data());
 	glUniformMatrix3fv(prog->getUniform("T"), 1, GL_FALSE, T.data());
-	glUniform3fv(prog->getUniform("lightPosCam"), 1, lightPosCam.data());
+	glUniform3f(prog->getUniform("lightPosCam"), lightPosCam[0], lightPosCam[1], lightPosCam[2]);
+
+	// MV->pushMatrix();
+	// MV->translate(lightPosCam);
+	// glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
+	// glUniformMatrix4fv(prog->getUniform("MV"), 1, GL_FALSE, MV->topMatrix().data());
+	// sun->draw(prog);
+	// MV->popMatrix();
+
 
 	MV->pushMatrix();
 	MV->translate(objects[0]->position);
@@ -308,7 +395,8 @@ static void render()
 
 	MV->pushMatrix();
 	MV->translate(objects[1]->position);
-	MV->scale(100, 100, 100);
+	MV->rotate(45, 0, 0, 1);
+	MV->scale(20, 20, 20);
 	glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
 	glUniformMatrix4fv(prog->getUniform("MV"), 1, GL_FALSE, MV->topMatrix().data());
 	objects[1]->step(.01f);
@@ -317,6 +405,17 @@ static void render()
 	texture0->unbind();
 	MV->popMatrix();
 
+	MV->pushMatrix();
+	MV->translate(objects[1]->position);
+	MV->rotate(45, 0, 1, 0);
+	MV->scale(20, 20, 20);
+	glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
+	glUniformMatrix4fv(prog->getUniform("MV"), 1, GL_FALSE, MV->topMatrix().data());
+	objects[2]->step(.01f);
+	objects[2]->shape->draw(prog);
+	texture1->unbind();
+	texture0->unbind();
+	MV->popMatrix();
 
 	prog->unbind();
 	
@@ -333,6 +432,8 @@ int main(int argc, char **argv)
 		return 0;
 	}
 	RESOURCE_DIR = argv[1] + string("/");
+	RESOURCE_DIR2 = argv[2] + string("/");
+	name = argv[3];
 
 	// Set error callback.
 	glfwSetErrorCallback(error_callback);

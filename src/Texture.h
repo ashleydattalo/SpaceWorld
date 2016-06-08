@@ -20,8 +20,19 @@ public:
 	void unbind();
 	void setWrapModes(GLint wrapS, GLint wrapT); // Must be called after init()
 	
+	void setFilenamesTexCube(const std::string &negx,
+					  const std::string &posx,
+					  const std::string &negy,
+					  const std::string &posy,
+					  const std::string &negz,
+					  const std::string &posz);
+	void initTexCube();
+	void bindTexCube(GLint handle);
+	void unbindTexCube();
+	
 private:
 	std::string filename;
+	std::string filenames[6];
 	int width;
 	int height;
 	GLuint tid;

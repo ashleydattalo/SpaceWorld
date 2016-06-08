@@ -14,6 +14,8 @@ varying vec2 vTex1;
 varying vec3 normal;
 varying vec4 vecPos;
 
+uniform samplerCube cubemap;
+
 void main()
 {
 	gl_Position = P * MV * aPos;

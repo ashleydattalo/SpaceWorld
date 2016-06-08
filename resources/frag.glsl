@@ -11,12 +11,17 @@ varying vec2 vTex1;
 varying vec3 normal;
 varying vec4 vecPos;
 
+uniform mat4 V;
+
 void main()
 {
+	vec4 sunPos4 = V * vec4(lightPosCam, 1);
+	vec3 lightPos = sunPos4.xyz;
+
 	vec3 n = normalize(normal);
 	vec3 e = normalize(vec3(0.0, 0.0, 0.0) - vecPos.xyz);
 	
-	vec3 l = normalize(lightPosCam - vecPos.xyz);
+	vec3 l = normalize(lightPos - vecPos.xyz);
 	vec3 h = normalize(l + e);
 
 
